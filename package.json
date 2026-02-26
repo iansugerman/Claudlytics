@@ -1,0 +1,12 @@
+{
+  "name": "claude-usage",
+  "version": "1.0.0",
+  "description": "Track Claude Code token usage and costs",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  }
+}
