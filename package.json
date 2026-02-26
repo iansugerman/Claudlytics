@@ -1,5 +1,5 @@
 {
-  "name": "claude-usage",
+  "name": "claudlytics",
   "version": "1.0.0",
   "description": "Track Claude Code token usage and costs",
   "main": "server.js",

@@ -216,5 +216,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Claude Usage running at http://localhost:${PORT}`);
+  console.log(`Claudlytics running at http://localhost:${PORT}`);
 });
