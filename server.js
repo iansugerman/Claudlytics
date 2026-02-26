@@ -65,6 +65,51 @@ function parseUsageFromDir(sinceMs) {
   return totals;
 }
 
+// Parse the 5-hour session window across all projects
+// Returns usage totals + the earliest timestamp in the window (for reset time)
+function getSessionWindow() {
+  const SESSION_MS = 5 * 60 * 60 * 1000; // 5 hours
+  const sinceMs = Date.now() - SESSION_MS;
+  const totals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, messages: 0, earliestMs: null };
+  if (!fs.existsSync(CLAUDE_DIR)) return totals;
+
+  function walk(dir) {
+    let entries;
+    try { entries = fs.readdirSync(dir); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry);
+      let stat;
+      try { stat = fs.statSync(full); } catch { continue; }
+      if (stat.isDirectory()) { walk(full); continue; }
+      if (!entry.endsWith(".jsonl")) continue;
+      try {
+        const lines = fs.readFileSync(full, "utf8").split("\n").filter(Boolean);
+        for (const line of lines) {
+          try {
+            const obj = JSON.parse(line);
+            if (obj.type !== "assistant" || !obj.message?.usage) continue;
+            const ts = new Date(obj.timestamp).getTime();
+            if (ts < sinceMs) continue;
+            const u = obj.message.usage;
+            totals.input += u.input_tokens || 0;
+            totals.output += u.output_tokens || 0;
+            totals.cacheRead += u.cache_read_input_tokens || 0;
+            totals.cacheWrite += (u.cache_creation_input_tokens || 0);
+            totals.cost += calcCost(u);
+            totals.messages++;
+            if (totals.earliestMs === null || ts < totals.earliestMs) totals.earliestMs = ts;
+          } catch {}
+        }
+      } catch {}
+    }
+  }
+  walk(CLAUDE_DIR);
+
+  // Reset time = earliest message in window + 5 hours
+  totals.resetAtMs = totals.earliestMs !== null ? totals.earliestMs + SESSION_MS : null;
+  return totals;
+}
+
 function getCurrentSession() {
   let latest = { mtime: 0, file: null };
   function walk(dir) {
@@ -136,6 +181,7 @@ async function getUsage() {
   const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - 6); startOfWeek.setHours(0, 0, 0, 0);
   const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
 
+  const sessionWindow = getSessionWindow();
   const session = getCurrentSession();
   const today = parseUsageFromDir(startOfDay.getTime());
   const week = parseUsageFromDir(startOfWeek.getTime());
@@ -148,7 +194,7 @@ async function getUsage() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const apiUsage = await fetchAnthropicUsage(apiKey);
 
-  return { session, today, week, month, cycleDay, daysInMonth, cycleProgress, apiUsage };
+  return { session, sessionWindow, today, week, month, cycleDay, daysInMonth, cycleProgress, apiUsage };
 }
 
 const HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
