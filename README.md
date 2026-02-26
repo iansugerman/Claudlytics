@@ -2,6 +2,9 @@
 
 A lightweight web dashboard that tracks your Claude Code token usage and costs in real time.
 
+<img width="1327" height="634" alt="image" src="https://github.com/user-attachments/assets/f02818d5-a953-4e61-823d-0faaf97d9964" />
+
+
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## Features
