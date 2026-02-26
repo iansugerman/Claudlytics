@@ -315,15 +315,75 @@ function renderCard(label, dotClass, data) {
     </div>`;
 }
 
+// Fetch plan limits directly from claude.ai using the browser's existing session cookie
+async function fetchPlanLimits() {
+  try {
+    const res = await fetch("https://claude.ai/api/usage_limit", {
+      credentials: "include",
+      headers: { "Accept": "application/json" },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function renderPlanLimits(pl) {
+  if (!pl) return "";
+  const limits = [];
+
+  if (pl.session_limit != null) {
+    const pct = Math.min(Math.round((pl.session_usage / pl.session_limit) * 100), 100);
+    const resetMins = pl.session_reset_in_seconds != null
+      ? formatMins(Math.round(pl.session_reset_in_seconds / 60)) : null;
+    limits.push({ label: "Current Session", pct, reset: resetMins ? `Resets in ${resetMins}` : "", cls: "session" });
+  }
+
+  if (pl.weekly_limit != null) {
+    const pct = Math.min(Math.round((pl.weekly_usage / pl.weekly_limit) * 100), 100);
+    const resetAt = pl.weekly_reset_at ? formatResetDate(pl.weekly_reset_at) : null;
+    limits.push({ label: "Weekly — All Models", pct, reset: resetAt ? `Resets ${resetAt}` : "", cls: "weekly" });
+  }
+
+  if (!limits.length) return "";
+
+  let html = `<div class="card">
+    <div class="card-header">
+      <span class="card-title"><span class="dot" style="background:#a371f7;margin-right:5px"></span>Plan Limits</span>
+    </div>`;
+  for (const lim of limits) {
+    html += `<div class="limit-row">
+      <div class="limit-header"><span class="limit-name">${lim.label}</span></div>
+      <div class="limit-bar-bg">
+        <div class="limit-bar-fill ${lim.cls}" style="width:${lim.pct}%"></div>
+      </div>
+      <div class="limit-footer">
+        <span class="limit-pct">${lim.pct}% used</span>
+        <span class="limit-reset">${lim.reset}</span>
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 async function load() {
   const content = document.getElementById("content");
   const upd = document.getElementById("lastUpdated");
 
   try {
-    const d = await fetch("/api/usage").then(r => r.json());
+    // Fetch token data from server and plan limits from claude.ai in parallel
+    const [d, pl] = await Promise.all([
+      fetch("/api/usage").then(r => r.json()),
+      fetchPlanLimits(),
+    ]);
     upd.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     let html = "";
+
+    // Plan limits at the top if available
+    html += renderPlanLimits(pl);
 
     html += renderCard("Current Session", "dot-session", d.session);
     html += renderCard("Today", "dot-today", d.today);
@@ -347,48 +407,6 @@ async function load() {
           </div>
         </div>
       </div>`;
-
-    // Plan limits from Claude.ai subscription
-    if (d.planLimits) {
-      const pl = d.planLimits;
-      const limits = [];
-
-      if (pl.session_limit != null) {
-        const pct = Math.round((pl.session_usage / pl.session_limit) * 100);
-        const resetMins = pl.session_reset_in_seconds != null
-          ? formatMins(Math.round(pl.session_reset_in_seconds / 60)) : null;
-        limits.push({ label: "Current Session", pct, reset: resetMins ? `Resets in ${resetMins}` : "", cls: "session" });
-      }
-
-      if (pl.weekly_limit != null) {
-        const pct = Math.round((pl.weekly_usage / pl.weekly_limit) * 100);
-        const resetAt = pl.weekly_reset_at ? formatResetDate(pl.weekly_reset_at) : null;
-        limits.push({ label: "Weekly (All Models)", pct, reset: resetAt ? `Resets ${resetAt}` : "", cls: "weekly" });
-      }
-
-      if (limits.length) {
-        html += `<div class="card">
-          <div class="card-header">
-            <span class="card-title"><span class="dot" style="background:#a371f7;margin-right:5px"></span>Plan Limits</span>
-          </div>`;
-        for (const lim of limits) {
-          const clampedPct = Math.min(lim.pct, 100);
-          html += `<div class="limit-row">
-            <div class="limit-header">
-              <span class="limit-name">${lim.label}</span>
-            </div>
-            <div class="limit-bar-bg">
-              <div class="limit-bar-fill ${lim.cls}" style="width:${clampedPct}%"></div>
-            </div>
-            <div class="limit-footer">
-              <span class="limit-pct">${lim.pct}% used</span>
-              <span class="limit-reset">${lim.reset}</span>
-            </div>
-          </div>`;
-        }
-        html += `</div>`;
-      }
-    }
 
     content.innerHTML = html;
   } catch (e) {
