@@ -252,7 +252,7 @@ async function load() {
   const upd = document.getElementById("lastUpdated");
 
   try {
-    const d = await window.claude.getUsage();
+    const d = await fetch("/api/usage").then(r => r.json());
     upd.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     let html = "";
