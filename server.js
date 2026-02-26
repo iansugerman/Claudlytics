@@ -131,6 +131,31 @@ function fetchAnthropicUsage(apiKey) {
   });
 }
 
+function fetchPlanLimits(sessionKey) {
+  return new Promise((resolve) => {
+    if (!sessionKey) return resolve(null);
+    const opts = {
+      hostname: "api.claude.ai",
+      path: "/api/usage_limit",
+      headers: {
+        "Cookie": `sessionKey=${sessionKey}`,
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+      },
+    };
+    const req = https.get(opts, (res) => {
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => {
+        try { resolve(JSON.parse(data)); }
+        catch { resolve(null); }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+  });
+}
+
 async function getUsage() {
   const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
   const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - 6); startOfWeek.setHours(0, 0, 0, 0);
@@ -146,9 +171,13 @@ async function getUsage() {
   const cycleProgress = cycleDay / daysInMonth;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  const apiUsage = await fetchAnthropicUsage(apiKey);
+  const sessionKey = process.env.CLAUDE_SESSION_KEY;
+  const [apiUsage, planLimits] = await Promise.all([
+    fetchAnthropicUsage(apiKey),
+    fetchPlanLimits(sessionKey),
+  ]);
 
-  return { session, today, week, month, cycleDay, daysInMonth, cycleProgress, apiUsage };
+  return { session, today, week, month, cycleDay, daysInMonth, cycleProgress, apiUsage, planLimits };
 }
 
 const HTML = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
