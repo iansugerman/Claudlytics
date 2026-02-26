@@ -215,6 +215,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Claudlytics running at http://localhost:${PORT}`);
+server.listen(PORT, "127.0.0.1", () => {
+  console.log(`Claudlytics running at http://localhost:${PORT} (localhost only)`);
 });
